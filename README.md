@@ -12,5 +12,3 @@
 控制台地址`192.168.1.1` 默认密码`password`
 
 uboot刷机用`openwrt-ipq60xx-generic-zn_m2-squashfs-nand-factory.ubi`
-
-openwrt系统升级用`openwrt-ipq60xx-generic-zn_m2-squashfs-nand-factory.ubi`
