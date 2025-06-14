@@ -1,3 +1,15 @@
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+#
+# File: .github/workflows/openwrt-bulder.yml
+# Description: Build OpenWrt using GitHub Actions
+#
+# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+
 name: zn-m2 docker build
 
 on:
@@ -28,14 +40,14 @@ jobs:
         run: |
           cd /opt
           git clone https://github.com/openwrt-fork/sdf8057-ipq6000.git -b master openwrt
-          chmod +x ./scripts/zn-m2/*.sh
+          chmod +x ./scripts/zn-m2/*
           mv feeds.conf.default openwrt/feeds.conf.default
           cd openwrt 
           ../scripts/zn-m2/diy-part1.sh
           ./scripts/feeds update -a
           ../scripts/zn-m2/diy-part2.sh
           ./scripts/feeds install -a
-          mv ../config/zn-m2.config .config
+          mv ../config/zn-m2.config openwrt/.config
           ../scripts/zn-m2/diy-part3.sh
           make defconfig
           make download -j4
@@ -114,4 +126,4 @@ jobs:
     - name: Delete Tags without Release
       uses: Huanyueyichen/delete-tags-without-release-action@v0.2.0
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

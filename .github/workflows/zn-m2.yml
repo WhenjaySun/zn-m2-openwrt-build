@@ -15,12 +15,14 @@ name: zn-m2 build
 on:
   repository_dispatch:
   workflow_dispatch:
+  schedule:
+    - cron: '0 20 * * *'
 permissions:
   contents: write
   actions: write
 
 env:
-  REPO_URL: https://github.com/sdf8057/ipq6000.git
+  REPO_URL: https://github.com/openwrt-fork/sdf8057-ipq6000.git
   REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: ./config/zn-m2.config
@@ -28,7 +30,6 @@ env:
   DIY_P2_SH: ./scripts/zn-m2/diy-part2.sh
   DIY_P3_SH: ./scripts/zn-m2/diy-part3.sh
   UPLOAD_BIN_DIR: false
-  UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
 
@@ -57,6 +58,14 @@ jobs:
 
     - name: Checkout
       uses: actions/checkout@main
+
+    - name: Cache OpenWrt dl
+      uses: actions/cache@v4
+      with:
+        path: /workdir/openwrt/dl
+        key: ${{ runner.os }}-openwrt-dl-${{ hashFiles('**/feeds.conf.default') }}
+        restore-keys: |
+          ${{ runner.os }}-openwrt-dl-
 
     - name: Initialization environment
       env:
@@ -120,12 +129,18 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
+    - name: Use ccache
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        key: ${{ runner.os }}-ccache-${{ hashFiles('**/feeds.conf.default', '**/*.config') }}
+
     - name: Compile the firmware
       id: compile
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
+        make -j$(nproc) CCACHE_DIR="${{ env.CCACHE_DIR }}" CCACHE_LOGFILE="${{ env.CCACHE_LOGFILE }}" || make -j1 V=s
+        ccache -s
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -160,7 +175,7 @@ jobs:
       id: tag
       if: env.UPLOAD_RELEASE == 'true'
       run: |
-        echo "release_tag=ZN-M2-$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        echo "release_tag=v$(date +"%Y.%m.%d.%H%M")/zn-m2/basic" >> $GITHUB_OUTPUT
         touch release.txt
         echo "ZN-M2 firmware" >> release.txt
         grep luci-app-passwall ${{ env.FIRMWARE }}/openwrt-ipq60xx-generic-device-zn-m2.manifest | awk -F" - " '{print "Passwall " "`"$2"`"}' >> release.txt
@@ -173,14 +188,13 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to release
-      uses: softprops/action-gh-release@master
+      uses: softprops/action-gh-release@v2.1.0
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         name: ${{ steps.tag.outputs.release_name }}
         tag_name: ${{ steps.tag.outputs.release_tag }}
-        prerelease: true
         body_path: release.txt
         files: |
          ${{ env.FIRMWARE }}/*.ubi
@@ -190,9 +204,11 @@ jobs:
     - name: Delete releases and workflows runs
       uses: ophub/delete-releases-workflows@main
       with:
-        delete_releases: true
-        prerelease_option: true
-        releases_keep_latest: 3
         delete_workflows: true
         workflows_keep_day: 3
         gh_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete Tags without Release
+      uses: Huanyueyichen/delete-tags-without-release-action@v0.2.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
