@@ -38,6 +38,7 @@ jobs:
         image: ghcr.io/openwrt-fork/openwrt-docker-build:main
         options: -v ${{ github.workspace }}:/opt
         run: |
+          apt-get update && apt-get install -y lua5.1
           cd /opt
           git clone https://github.com/openwrt-fork/sdf8057-ipq6000.git -b master openwrt
           chmod +x ./scripts/zn-m2/*
